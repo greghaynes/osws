@@ -40,5 +40,5 @@ class TestServer(base.TestCase):
     async def test_server_connect(self):
         await self.server.start()
         ws = await websockets.connect('ws://127.0.0.1:9999/')
-        ws.close()
+        await ws.close()
         await self.server.stop()
