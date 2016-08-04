@@ -23,7 +23,10 @@ import websockets
 def asynctest(async_fn):
     def async_runner(self=None):
         loop = asyncio.get_event_loop()
-        loop.run_until_complete(async_fn(self))
+        def on_done(future):
+            loop.stop()
+        test_future = asyncio.ensure_future(async_fn(self))
+        test_future.add_done_callback(on_done)
         loop.run_forever()
     return async_runner
 
@@ -32,7 +35,6 @@ class TestServer(base.TestCase):
     def setUp(self):
         super(TestServer, self).setUp()
         self.server = server.Server()
-        self.loop = asyncio.get_event_loop()
 
     @asynctest
     async def test_server_connect(self):
@@ -40,4 +42,3 @@ class TestServer(base.TestCase):
         ws = await websockets.connect('ws://127.0.0.1:9999/')
         ws.close()
         await self.server.stop()
-        self.loop.stop()
