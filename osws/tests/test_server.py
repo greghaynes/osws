@@ -20,18 +20,24 @@ from osws.tests import base
 import websockets
 
 
+def asynctest(async_fn):
+    def async_runner(self=None):
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(async_fn(self))
+        loop.run_forever()
+    return async_runner
+
+
 class TestServer(base.TestCase):
     def setUp(self):
         super(TestServer, self).setUp()
         self.server = server.Server()
         self.loop = asyncio.get_event_loop()
 
-    def test_server_connect(self):
-        async def async_test():
-            await self.server.start()
-            ws = await websockets.connect('ws://127.0.0.1:9999/')
-            ws.close()
-            await self.server.stop()
-            self.loop.stop()
-        self.loop.run_until_complete(async_test())
-        self.loop.run_forever()
+    @asynctest
+    async def test_server_connect(self):
+        await self.server.start()
+        ws = await websockets.connect('ws://127.0.0.1:9999/')
+        ws.close()
+        await self.server.stop()
+        self.loop.stop()
