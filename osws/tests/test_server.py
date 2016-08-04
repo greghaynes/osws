@@ -37,8 +37,11 @@ class TestServer(base.TestCase):
         self.server = server.Server()
 
     @asynctest
-    async def test_server_connect(self):
+    async def test_server_connections(self):
         await self.server.start()
+        self.assertEqual(0, len(self.server.connections))
         ws = await websockets.connect('ws://127.0.0.1:9999/')
+        self.assertEqual(1, len(self.server.connections))
         await ws.close()
         await self.server.stop()
+        self.assertEqual(0, len(self.server.connections))

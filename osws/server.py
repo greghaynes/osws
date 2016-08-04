@@ -13,6 +13,7 @@
 # under the License.
 
 import asyncio
+import copy
 
 import websockets
 
@@ -22,6 +23,11 @@ class Server(object):
         self._host = host
         self._port = port
         self._running = False
+        self._connected = set()
+
+    @property
+    def connections(self):
+        return copy.copy(self._connected)
 
     async def start(self):
         if self._running:
@@ -38,6 +44,7 @@ class Server(object):
         await self.server.wait_closed()
 
     async def _handle_ws(self, websocket, path):
+        self._connected.add(websocket)
         while self._running:
             client_read = asyncio.ensure_future(websocket.recv())
             done, pending = await asyncio.wait(
@@ -52,6 +59,7 @@ class Server(object):
                     break
 
         await websocket.close()
+        self._connected.remove(websocket)
 
 
 def main():
