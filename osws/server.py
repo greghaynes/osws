@@ -55,8 +55,8 @@ class Server(object):
             if client_read in done:
                 try:
                     message = client_read.result()
-                except websockets.ConnectionClosed:
-                    break
+                except websockets.exceptions.ConnectionClosed:
+                    pass
 
         await websocket.close()
         self._connected.remove(websocket)

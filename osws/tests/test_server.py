@@ -13,6 +13,7 @@
 # under the License.
 
 import asyncio
+import traceback
 
 from osws import server
 from osws.tests import base
@@ -23,11 +24,17 @@ import websockets
 def asynctest(async_fn):
     def async_runner(self=None):
         loop = asyncio.get_event_loop()
+        exceptions = []
+        test_future = asyncio.ensure_future(async_fn(self))
+
         def on_done(future):
             loop.stop()
-        test_future = asyncio.ensure_future(async_fn(self))
+
         test_future.add_done_callback(on_done)
         loop.run_forever()
+
+        test_future.result()
+
     return async_runner
 
 
