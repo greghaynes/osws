@@ -24,13 +24,14 @@ class TestServer(base.TestCase):
     def setUp(self):
         super(TestServer, self).setUp()
         self.server = server.Server()
+        self.loop = asyncio.get_event_loop()
 
     def test_server_connect(self):
-        async def test_connection():
+        async def async_test():
+            await self.server.start()
             ws = await websockets.connect('ws://127.0.0.1:9999/')
-            self.server.stop()
-            asyncio.get_event_loop().stop()
-
-        self.server.start()
-        asyncio.get_event_loop().run_until_complete(test_connection())
-        asyncio.get_event_loop().run_forever()
+            ws.close()
+            await self.server.stop()
+            self.loop.stop()
+        self.loop.run_until_complete(async_test())
+        self.loop.run_forever()

@@ -23,21 +23,21 @@ class Server(object):
         self._port = port
         self._running = False
 
-    def run_forever(self):
-        self.start()
-        asyncio.get_event_loop().run_forever()
+    async def start(self):
+        if self._running:
+            raise ValueError('Already running')
 
-    def start(self):
         self._running = True
-        ws_server = websockets.serve(self._handle_ws,
-                                     self._host,
-                                     self._port)
-        asyncio.get_event_loop().run_until_complete(ws_server)
+        self.server = await websockets.serve(self._handle_ws,
+                                             self._host,
+                                             self._port)
 
-    def stop(self):
+    async def stop(self):
         self._running = False
+        self.server.close()
+        await self.server.wait_closed()
 
-    async def _handle_ws(websocket, path):
+    async def _handle_ws(self, websocket, path):
         while self._running:
             client_read = asyncio.ensure_future(websocket.recv())
             done, pending = await asyncio.wait(
@@ -46,9 +46,12 @@ class Server(object):
             )
 
             if client_read in done:
-                message = client_read.result()
+                try:
+                    message = client_read.result()
+                except websockets.ConnectionClosed:
+                    break
 
-        websocket.close()
+        await websocket.close()
 
 
 def main():
