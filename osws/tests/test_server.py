@@ -111,3 +111,36 @@ class TestServer(base.TestCase):
                          json.loads(resp))
         await ws.close()
         await server.stop()
+
+    @asynctest
+    async def test_command_subscribe_single(self):
+        server, host, port = await self._start_server()
+        ws = await websockets.connect('ws://%s:%d/' % (host, port))
+        cmd = messages.Command(cmd_type='subscribe',
+                               payload='{"services": ["derp"]}')
+        await ws.send(cmd.to_json())
+        resp = await ws.recv()
+        self.assertEqual(
+            {'cmd_type': 'subscriptions', 'payload': {'services': ['derp']}},
+            json.loads(resp)
+        )
+        await ws.close()
+        await server.stop()
+
+    @asynctest
+    async def test_command_subscribe_two(self):
+        server, host, port = await self._start_server()
+        ws = await websockets.connect('ws://%s:%d/' % (host, port))
+        cmd = messages.Command(cmd_type='subscribe',
+                               payload='{"services": ["derp1", "derp2"]}')
+        await ws.send(cmd.to_json())
+        resp = await ws.recv()
+        resp_cmp = json.loads(resp)
+        resp_cmp['payload']['services'] = set(resp_cmp['payload']['services'])
+        self.assertEqual(
+            {'cmd_type': 'subscriptions',
+             'payload': {'services': set(['derp1', 'derp2'])}},
+            resp_cmp
+        )
+        await ws.close()
+        await server.stop()

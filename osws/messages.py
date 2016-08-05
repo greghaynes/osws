@@ -73,7 +73,11 @@ class Pong(Message):
 
 
 class Subscribe(Message):
-    properties = ['project']
+    properties = ['services']
+
+
+class Subscriptions(Message):
+    properties = ['services']
 
 
 def bijective_dict(src):
@@ -88,7 +92,9 @@ class Command(Message):
     types = bijective_dict({
         'error': Error,
         'ping': Ping,
-        'pong': Pong
+        'pong': Pong,
+        'subscribe': Subscribe,
+        'subscriptions': Subscriptions
     })
 
     properties = ['cmd_type', 'payload']

@@ -13,6 +13,7 @@
 # under the License.
 
 import asyncio
+import collections
 import copy
 
 import websockets
@@ -22,8 +23,9 @@ from osws import messages
 
 
 class Connection(object):
-    def __init__(self, websocket):
+    def __init__(self, websocket, subscriptions):
         self.websocket = websocket
+        self._subscriptions = subscriptions
 
     async def handle(self):
         while True:
@@ -62,11 +64,37 @@ class Connection(object):
             messages.Pong(payload=message.get('payload'))
         )
 
+    async def _handle_subscribe_message(self, message):
+        for service in message.get('services'):
+            self._subscriptions.add_subscription(service, self)
+        my_services = list(self._subscriptions.get_services(self))
+        await self._send_message(messages.Subscriptions(services=my_services))
+
     async def _send_error(self, error_str):
         await self._send_message(messages.Error(description=error_str))
 
     async def _send_message(self, msg):
         await self.websocket.send(messages.Command.for_message(msg).to_json())
+
+
+class SubscriptionMap(object):
+    def __init__(self):
+        self._service_map = collections.defaultdict(set)
+        self._connection_map = collections.defaultdict(set)
+
+    def add_subscription(self, service, connection):
+        self._service_map[service].add(connection)
+        self._connection_map[connection].add(service)
+
+    def remove_connection(self, connection):
+        for service in self._connection_map[connection]:
+            self._service_map[service].remove(connection)
+
+    def get_connections(self, service):
+        return self._service_map[service]
+
+    def get_services(self, connection):
+        return self._connection_map[connection]
 
 
 class Server(object):
@@ -75,6 +103,7 @@ class Server(object):
         self._port = port
         self._running = False
         self._connected = set()
+        self._subscriptions = SubscriptionMap()
 
     @property
     def connections(self):
@@ -95,11 +124,14 @@ class Server(object):
         await self.server.wait_closed()
 
     async def _handle_ws(self, websocket, path):
-        conn = Connection(websocket)
+        conn = Connection(websocket, self._subscriptions)
         self._connected.add(conn)
-        while self._running:
-            await conn.handle()
-        self._connected.remove(conn)
+        try:
+            while self._running:
+                await conn.handle()
+        finally:
+            self._subscriptions.remove_connection(conn)
+            self._connected.remove(conn)
 
 
 def main():
