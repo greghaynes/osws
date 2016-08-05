@@ -17,6 +17,7 @@ import copy
 
 import websockets
 
+from osws import exc
 from osws import messages
 
 
@@ -40,10 +41,20 @@ class Connection(object):
                     return
 
     async def _handle_message(self, message):
-        cmd = messages.Command.from_json(message)
-        if not cmd.get('cmd_type') in messages.Command.types:
+        try:
+            cmd = messages.Command.from_json(message)
+            msg = cmd.get_message()
+        except exc.InvalidCommandTypeError:
             await self._send_error('Invalid command type')
-            return
+        except exc.MessageDecodeError:
+            await self._send_error('Message decode error')
+        else:
+            try:
+                handler = getattr(self, '_handle_%s_message' % cmd.get('cmd_type'))
+            except AttributeError:
+                await self._send_error('Unable to handle command type')
+            else:
+                await handler(msg)
 
     async def _send_error(self, error_str):
         await self._send_message(messages.Error(description=error_str))

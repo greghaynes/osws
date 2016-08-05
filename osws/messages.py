@@ -17,14 +17,16 @@ import json
 from osws import exc
 
 
-
 class Message(object):
     properties = []
     sub_messages = {}
 
     @classmethod
     def from_json(cls, json_str):
-        flattened = json.loads(json_str)
+        try:
+            flattened = json.loads(json_str)
+        except json.decoder.JSONDecodeError:
+            raise exc.MessageDecodeError()
         return cls(**flattened)
 
     def __init__(self, **kwargs):
@@ -66,6 +68,10 @@ class Ping(Message):
     properties = ['payload']
 
 
+class Pong(Message):
+    properties = ['payload']
+
+
 def bijective_dict(src):
     ret = {}
     for key, val in src.items():
@@ -77,7 +83,8 @@ def bijective_dict(src):
 class Command(Message):
     types = bijective_dict({
         'error': Error,
-        'ping': Ping
+        'ping': Ping,
+        'pong': Pong
     })
 
     properties = ['cmd_type', 'payload']
@@ -86,3 +93,10 @@ class Command(Message):
     def for_message(cls, message):
         return Command(cmd_type=cls.types[type(message)], 
                        payload=message.flatten())
+
+    def get_message(self):
+        try:
+            msg_type = self.types[self.get('cmd_type')]
+        except KeyError:
+            raise exc.InvalidCommandTypeError()
+        return msg_type.from_json(self.get('payload'))

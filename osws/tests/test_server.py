@@ -13,6 +13,7 @@
 # under the License.
 
 import asyncio
+import json
 import random
 import traceback
 
@@ -59,13 +60,39 @@ class TestServer(base.TestCase):
         self.assertEqual(0, len(server.connections))
 
     @asynctest
-    async def test_ping(self):
+    async def test_command_invalid_type(self):
         server, host, port = await self._start_server()
         ws = await websockets.connect('ws://%s:%d/' % (host, port))
         await ws.send(messages.Command(cmd_type='derp', payload='').to_json())
         resp = await ws.recv()
-        self.assertEqual('{"payload": {"description": "Invalid command type"},'
-                         ' "cmd_type": "error"}',
-                         resp)
+        self.assertEqual({"payload": {"description": "Invalid command type"},
+                          "cmd_type": "error"},
+                         json.loads(resp))
+        await ws.close()
+        await server.stop()
+
+    @asynctest
+    async def test_command_unable_to_handle(self):
+        server, host, port = await self._start_server()
+        ws = await websockets.connect('ws://%s:%d/' % (host, port))
+        await ws.send(messages.Command(cmd_type='pong',
+                                       payload='{}').to_json())
+        resp = await ws.recv()
+        self.assertEqual({
+            "payload": {"description": "Unable to handle command type"},
+            "cmd_type": "error"}, json.loads(resp))
+        await ws.close()
+        await server.stop()
+
+    @asynctest
+    async def test_command_decode_error(self):
+        server, host, port = await self._start_server()
+        ws = await websockets.connect('ws://%s:%d/' % (host, port))
+        await ws.send(messages.Command(cmd_type='ping',
+                                       payload='{,}').to_json())
+        resp = await ws.recv()
+        self.assertEqual({"payload": {"description": "Message decode error"},
+                          "cmd_type": "error"},
+                         json.loads(resp))
         await ws.close()
         await server.stop()
