@@ -72,6 +72,10 @@ class Pong(Message):
     properties = ['payload']
 
 
+class Subscribe(Message):
+    properties = ['project']
+
+
 def bijective_dict(src):
     ret = {}
     for key, val in src.items():
@@ -91,7 +95,7 @@ class Command(Message):
 
     @classmethod
     def for_message(cls, message):
-        return Command(cmd_type=cls.types[type(message)], 
+        return Command(cmd_type=cls.types[type(message)],
                        payload=message.flatten())
 
     def get_message(self):

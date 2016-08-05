@@ -1,3 +1,17 @@
+# -*- coding: utf-8 -*-
+
+# Licensed under the Apache License, Version 2.0 (the "License"); you may
+# not use this file except in compliance with the License. You may obtain
+# a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations
+# under the License.
+
 import logging
 import pika
 
@@ -73,8 +87,10 @@ class NotificationConsumer(object):
         if self._closing:
             self._connection.ioloop.stop()
         else:
-            LOGGER.warning('Connection closed, reopening in 5 seconds: (%s) %s',
-                           reply_code, reply_text)
+            LOGGER.warning(
+                'Connection closed, reopening in 5 seconds: (%s)%s',
+                reply_code, reply_text
+            )
             self._connection.add_timeout(5, self.reconnect)
 
     def reconnect(self):
@@ -158,7 +174,8 @@ class NotificationConsumer(object):
         """Invoked by pika when RabbitMQ has finished the Exchange.Declare RPC
         command.
 
-        :param pika.Frame.Method unused_frame: Exchange.DeclareOk response frame
+        :param pika.Frame.Method unused_frame: Exchange.DeclareOk response
+               frame
 
         """
         LOGGER.info('Exchange declared')
