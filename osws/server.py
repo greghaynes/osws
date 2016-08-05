@@ -50,11 +50,17 @@ class Connection(object):
             await self._send_error('Message decode error')
         else:
             try:
-                handler = getattr(self, '_handle_%s_message' % cmd.get('cmd_type'))
+                handler = getattr(self,
+                                  '_handle_%s_message' % cmd.get('cmd_type'))
             except AttributeError:
                 await self._send_error('Unable to handle command type')
             else:
                 await handler(msg)
+
+    async def _handle_ping_message(self, message):
+        await self._send_message(
+            messages.Pong(payload=message.get('payload'))
+        )
 
     async def _send_error(self, error_str):
         await self._send_message(messages.Error(description=error_str))

@@ -96,3 +96,16 @@ class TestServer(base.TestCase):
                          json.loads(resp))
         await ws.close()
         await server.stop()
+
+    @asynctest
+    async def test_command_ping(self):
+        server, host, port = await self._start_server()
+        ws = await websockets.connect('ws://%s:%d/' % (host, port))
+        cmd = messages.Command(cmd_type='ping',
+                               payload='{"payload": "derp"}')
+        await ws.send(cmd.to_json())
+        resp = await ws.recv()
+        self.assertEqual({'payload': {'payload': 'derp'}, 'cmd_type': 'pong'},
+                         json.loads(resp))
+        await ws.close()
+        await server.stop()
