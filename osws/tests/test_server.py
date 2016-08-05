@@ -13,12 +13,14 @@
 # under the License.
 
 import asyncio
+import random
 import traceback
 
-from osws import server
-from osws.tests import base
-
 import websockets
+
+from osws import server as osws_server
+from osws import messages
+from osws.tests import base
 
 
 def asynctest(async_fn):
@@ -39,16 +41,31 @@ def asynctest(async_fn):
 
 
 class TestServer(base.TestCase):
-    def setUp(self):
-        super(TestServer, self).setUp()
-        self.server = server.Server()
+    async def _start_server(self):
+        port = random.randint(20000, 60000)
+        host = 'localhost'
+        server = osws_server.Server(host, port)
+        await server.start()
+        return server, host, port
 
     @asynctest
-    async def test_server_connections(self):
-        await self.server.start()
-        self.assertEqual(0, len(self.server.connections))
-        ws = await websockets.connect('ws://127.0.0.1:9999/')
-        self.assertEqual(1, len(self.server.connections))
+    async def test_connections(self):
+        server, host, port = await self._start_server()
+        self.assertEqual(0, len(server.connections))
+        ws = await websockets.connect('ws://%s:%d/' % (host, port))
+        self.assertEqual(1, len(server.connections))
         await ws.close()
-        await self.server.stop()
-        self.assertEqual(0, len(self.server.connections))
+        await server.stop()
+        self.assertEqual(0, len(server.connections))
+
+    @asynctest
+    async def test_ping(self):
+        server, host, port = await self._start_server()
+        ws = await websockets.connect('ws://%s:%d/' % (host, port))
+        await ws.send(messages.Command(cmd_type='derp', payload='').to_json())
+        resp = await ws.recv()
+        self.assertEqual('{"payload": {"description": "Invalid command type"},'
+                         ' "cmd_type": "error"}',
+                         resp)
+        await ws.close()
+        await server.stop()

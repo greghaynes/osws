@@ -17,9 +17,43 @@ import copy
 
 import websockets
 
+from osws import messages
+
+
+class Connection(object):
+    def __init__(self, websocket):
+        self.websocket = websocket
+
+    async def handle(self):
+        while True:
+            client_read = asyncio.ensure_future(self.websocket.recv())
+            done, pending = await asyncio.wait(
+	        [client_read],
+                return_when=asyncio.FIRST_COMPLETED
+            )
+
+            if client_read in done:
+                try:
+                    await self._handle_message(client_read.result())
+                except websockets.exceptions.ConnectionClosed:
+                    await self.websocket.close()
+                    return
+
+    async def _handle_message(self, message):
+        cmd = messages.Command.from_json(message)
+        if not cmd.get('cmd_type') in messages.Command.types:
+            await self._send_error('Invalid command type')
+            return
+
+    async def _send_error(self, error_str):
+        await self._send_message(messages.Error(description=error_str))
+
+    async def _send_message(self, msg):
+        await self.websocket.send(messages.Command.for_message(msg).to_json())
+
 
 class Server(object):
-    def __init__(self, host='127.0.0.1', port='9999'):
+    def __init__(self, host='localhost', port='9999'):
         self._host = host
         self._port = port
         self._running = False
@@ -44,22 +78,11 @@ class Server(object):
         await self.server.wait_closed()
 
     async def _handle_ws(self, websocket, path):
-        self._connected.add(websocket)
+        conn = Connection(websocket)
+        self._connected.add(conn)
         while self._running:
-            client_read = asyncio.ensure_future(websocket.recv())
-            done, pending = await asyncio.wait(
-	        [client_read],
-                return_when=asyncio.FIRST_COMPLETED
-            )
-
-            if client_read in done:
-                try:
-                    message = client_read.result()
-                except websockets.exceptions.ConnectionClosed:
-                    pass
-
-        await websocket.close()
-        self._connected.remove(websocket)
+            await conn.handle()
+        self._connected.remove(conn)
 
 
 def main():

@@ -17,6 +17,7 @@ import json
 from osws import exc
 
 
+
 class Message(object):
     properties = []
     sub_messages = {}
@@ -57,5 +58,31 @@ class Message(object):
             return self._sub_messages[key]
 
 
+class Error(Message):
+    properties = ['description']
+
+
 class Ping(Message):
     properties = ['payload']
+
+
+def bijective_dict(src):
+    ret = {}
+    for key, val in src.items():
+        ret[key] = val
+        ret[val] = key
+    return ret
+
+
+class Command(Message):
+    types = bijective_dict({
+        'error': Error,
+        'ping': Ping
+    })
+
+    properties = ['cmd_type', 'payload']
+
+    @classmethod
+    def for_message(cls, message):
+        return Command(cmd_type=cls.types[type(message)], 
+                       payload=message.flatten())
