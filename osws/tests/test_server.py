@@ -25,18 +25,20 @@ from osws.tests import base
 
 
 def asynctest(async_fn):
-    def async_runner(self=None):
-        loop = asyncio.get_event_loop()
-        exceptions = []
-        test_future = asyncio.ensure_future(async_fn(self))
+    def async_runner(self):
+        async def loop_stop_wrapper(self, loop):
+            try:
+                return await async_fn(self)
+            finally:
+                loop.stop()
 
-        def on_done(future):
+        def exc_handler(loop, ctxt):
             loop.stop()
 
-        test_future.add_done_callback(on_done)
+        loop = asyncio.get_event_loop()
+        loop.set_exception_handler(exc_handler)
+        loop.run_until_complete(loop_stop_wrapper(self, loop))
         loop.run_forever()
-
-        test_future.result()
 
     return async_runner
 

@@ -15,8 +15,8 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
-import unittest
+import testtools
 
 
-class TestCase(unittest.TestCase):
+class TestCase(testtools.TestCase):
     """Test case base class for all unit tests."""
