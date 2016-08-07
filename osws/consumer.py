@@ -39,6 +39,10 @@ class NotificationConsumer(object):
         self._consumer_tag = None
         self._url = amqp_url
         self.queue_name = queue_name
+        self._message_handlers = set()
+
+    def add_message_handler(self, handler):
+        self._message_handlers.add(handler)
 
     def connect(self):
         """This method connects to RabbitMQ, returning the connection handle.
@@ -270,6 +274,8 @@ class NotificationConsumer(object):
         """
         LOGGER.info('Received message # %s from %s: %s',
                     basic_deliver.delivery_tag, properties.app_id, body)
+        for handler in self._message_handlers:
+            handler(properties, body)
         self.acknowledge_message(basic_deliver.delivery_tag)
 
     def acknowledge_message(self, delivery_tag):
@@ -352,7 +358,3 @@ def main():
         consumer.run()
     except KeyboardInterrupt:
         consumer.stop()
-
-
-if __name__ == '__main__':
-    main()

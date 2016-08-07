@@ -98,12 +98,13 @@ class SubscriptionMap(object):
 
 
 class Server(object):
-    def __init__(self, host='localhost', port='9999'):
+    def __init__(self, notify_source, host='localhost', port='9999'):
         self._host = host
         self._port = port
         self._running = False
         self._connected = set()
         self._subscriptions = SubscriptionMap()
+        notify_source.add_message_handler(self._handle_amqp_message)
 
     @property
     def connections(self):
@@ -118,9 +119,11 @@ class Server(object):
                                              self._host,
                                              self._port)
 
-    async def stop(self):
+    def stop(self):
         self._running = False
         self.server.close()
+
+    async def wait_closed(self):
         await self.server.wait_closed()
 
     async def _handle_ws(self, websocket, path):
@@ -133,10 +136,6 @@ class Server(object):
             self._subscriptions.remove_connection(conn)
             self._connected.remove(conn)
 
-
-def main():
-    Server().run_forever()
-
-
-if __name__ == '__main__':
-    main()
+    def _handle_amqp_message(self, properties, body):
+        import pdb;pdb.set_trace()
+        print(body)

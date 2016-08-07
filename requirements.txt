@@ -4,4 +4,5 @@
 
 pbr>=1.6
 pika
+oslo.config
 websockets

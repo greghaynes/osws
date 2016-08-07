@@ -15,8 +15,69 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
+import fixtures
+
+import asyncio
 import testtools
 
 
-class TestCase(testtools.TestCase):
+class AsyncFixture(fixtures.Fixture):
+    async def asyncSetUp(self):
+        pass
+
+    async def asyncCleanUp(self):
+        pass
+
+def aio_loop_while(async_fn):
+    def async_runner(self):
+        async def loop_stop_wrapper(self, loop, async_fn):
+            try:
+                return await async_fn(self)
+            finally:
+                loop.stop()
+
+        def exc_handler(loop, ctxt):
+            loop.stop()
+
+        loop = asyncio.get_event_loop()
+        loop.set_exception_handler(exc_handler)
+        loop.run_until_complete(loop_stop_wrapper(self, loop, async_fn))
+        loop.run_forever()
+
+    return async_runner
+
+
+asynctest = aio_loop_while
+
+
+class AsyncTestCase(testtools.TestCase):
+    def setUp(self):
+        super(AsyncTestCase, self).setUp()
+        self._async_cleanups = []
+        self.loop = asyncio.get_event_loop()
+        self.addCleanup(self._run_async_cleanups)
+        self._run_async_setups()
+
+    async def asyncSetUp(self):
+        pass
+
+    @aio_loop_while
+    async def _run_async_setups(self):
+        await self.asyncSetUp()
+
+    def addAsyncCleanup(self, cleanup, *args, **kwargs):
+        self._async_cleanups.append((cleanup, args, kwargs))
+
+    async def useAsyncFixture(self, fixture):
+        await fixture.asyncSetUp()
+        self.addAsyncCleanup(fixture.asyncCleanUp)
+        return self.useFixture(fixture)
+
+    @aio_loop_while
+    async def _run_async_cleanups(self):
+            for cleanup, args, kwargs in self._async_cleanups:
+                await cleanup(*args, **kwargs)
+
+
+class TestCase(AsyncTestCase):
     """Test case base class for all unit tests."""
