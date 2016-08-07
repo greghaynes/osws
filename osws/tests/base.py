@@ -21,13 +21,6 @@ import asyncio
 import testtools
 
 
-class AsyncFixture(fixtures.Fixture):
-    async def asyncSetUp(self):
-        pass
-
-    async def asyncCleanUp(self):
-        pass
-
 def aio_loop_while(async_fn):
     def async_runner(self):
         async def loop_stop_wrapper(self, loop, async_fn):
@@ -47,36 +40,40 @@ def aio_loop_while(async_fn):
     return async_runner
 
 
+class AsyncFixture(fixtures.Fixture):
+    def __init__(self):
+        self._async_cleanups = []
+
+    def setUp(self):
+        super(AsyncFixture, self).setUp()
+        self.addCleanup(self._run_async_cleanups)
+        if not asyncio.get_event_loop().is_running():
+            self._run_async_setup()
+
+    async def asyncSetUp():
+        pass
+
+    def addAsyncCleanUp(self, fn):
+        self._async_cleanups.append(fn)
+
+    @aio_loop_while
+    async def _run_async_cleanups(self):
+        for cleanup in self._async_cleanups:
+            await cleanup()
+
+    @aio_loop_while
+    async def _run_async_setup(self):
+        await self.asyncSetUp()
+
+
 asynctest = aio_loop_while
 
 
 class AsyncTestCase(testtools.TestCase):
-    def setUp(self):
-        super(AsyncTestCase, self).setUp()
-        self._async_cleanups = []
-        self.loop = asyncio.get_event_loop()
-        self.addCleanup(self._run_async_cleanups)
-        self._run_async_setups()
-
-    async def asyncSetUp(self):
-        pass
-
-    @aio_loop_while
-    async def _run_async_setups(self):
-        await self.asyncSetUp()
-
-    def addAsyncCleanup(self, cleanup, *args, **kwargs):
-        self._async_cleanups.append((cleanup, args, kwargs))
-
     async def useAsyncFixture(self, fixture):
+        self.useFixture(fixture)
         await fixture.asyncSetUp()
-        self.addAsyncCleanup(fixture.asyncCleanUp)
-        return self.useFixture(fixture)
-
-    @aio_loop_while
-    async def _run_async_cleanups(self):
-            for cleanup, args, kwargs in self._async_cleanups:
-                await cleanup(*args, **kwargs)
+        return fixture
 
 
 class TestCase(AsyncTestCase):

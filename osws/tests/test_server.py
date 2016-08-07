@@ -36,74 +36,91 @@ class ServerFixture(base.AsyncFixture):
         self.host = 'localhost'
         self.server = osws_server.Server(notify_source=FakeConsumer(),
                                          host=self.host, port=self.port)
+        self.addAsyncCleanUp(self._clean_up)
         await self.server.start()
 
-    async def asyncCleanUp(self):
+    async def _clean_up(self):
         self.server.stop()
         await self.server.wait_closed()
 
 
-class TestServer(base.AsyncTestCase):
+class WebsocketFixture(base.AsyncFixture):
+    def __init__(self, host, port):
+        super(WebsocketFixture, self).__init__()
+        self.host = host
+        self.port = port
+
     async def asyncSetUp(self):
-        await super(TestServer, self).asyncSetUp()
-        server_fxtr = await self.useAsyncFixture(ServerFixture())
+        dest_str = u'ws://%s:%d/' % (self.host, self.port)
+        self.addAsyncCleanUp(self._clean_up)
+        self.socket = await websockets.connect(dest_str)
+
+    async def _clean_up(self):
+        await self.socket.close()
+
+
+class TestServer(base.AsyncTestCase):
+    def setUp(self):
+        super(TestServer, self).setUp()
+        server_fxtr = self.useFixture(ServerFixture())
         self.server, self.host, self.port = (
             server_fxtr.server, server_fxtr.host, server_fxtr.port
         )
 
+    async def _get_server_ws(self):
+        fxtr = await self.useAsyncFixture(
+            WebsocketFixture(self.host, self.port)
+        )
+        return fxtr.socket
+
     @base.asynctest
     async def test_connections(self):
         self.assertEqual(0, len(self.server.connections))
-        ws = await websockets.connect('ws://%s:%d/' % (self.host, self.port))
+        socket = await self._get_server_ws()
         self.assertEqual(1, len(self.server.connections))
-        await ws.close()
 
     @base.asynctest
     async def test_command_invalid_type(self):
-        ws = await websockets.connect('ws://%s:%d/' % (self.host, self.port))
+        ws = await self._get_server_ws()
         await ws.send(messages.Command(cmd_type='derp', payload='').to_json())
         resp = await ws.recv()
         self.assertEqual({"payload": {"description": "Invalid command type"},
                           "cmd_type": "error"},
                          json.loads(resp))
-        await ws.close()
 
     @base.asynctest
     async def test_command_unable_to_handle(self):
-        ws = await websockets.connect('ws://%s:%d/' % (self.host, self.port))
+        ws = await self._get_server_ws()
         await ws.send(messages.Command(cmd_type='pong',
                                        payload='{}').to_json())
         resp = await ws.recv()
         self.assertEqual({
             "payload": {"description": "Unable to handle command type"},
             "cmd_type": "error"}, json.loads(resp))
-        await ws.close()
 
     @base.asynctest
     async def test_command_decode_error(self):
-        ws = await websockets.connect('ws://%s:%d/' % (self.host, self.port))
+        ws = await self._get_server_ws()
         await ws.send(messages.Command(cmd_type='ping',
                                        payload='{,}').to_json())
         resp = await ws.recv()
         self.assertEqual({"payload": {"description": "Message decode error"},
                           "cmd_type": "error"},
                          json.loads(resp))
-        await ws.close()
 
     @base.asynctest
     async def test_command_ping(self):
-        ws = await websockets.connect('ws://%s:%d/' % (self.host, self.port))
+        ws = await self._get_server_ws()
         cmd = messages.Command(cmd_type='ping',
                                payload='{"payload": "derp"}')
         await ws.send(cmd.to_json())
         resp = await ws.recv()
         self.assertEqual({'payload': {'payload': 'derp'}, 'cmd_type': 'pong'},
                          json.loads(resp))
-        await ws.close()
 
     @base.asynctest
     async def test_command_subscribe_single(self):
-        ws = await websockets.connect('ws://%s:%d/' % (self.host, self.port))
+        ws = await self._get_server_ws()
         cmd = messages.Command(cmd_type='subscribe',
                                payload='{"services": ["derp"]}')
         await ws.send(cmd.to_json())
@@ -112,11 +129,10 @@ class TestServer(base.AsyncTestCase):
             {'cmd_type': 'subscriptions', 'payload': {'services': ['derp']}},
             json.loads(resp)
         )
-        await ws.close()
 
     @base.asynctest
     async def test_command_subscribe_two(self):
-        ws = await websockets.connect('ws://%s:%d/' % (self.host, self.port))
+        ws = await self._get_server_ws()
         cmd = messages.Command(cmd_type='subscribe',
                                payload='{"services": ["derp1", "derp2"]}')
         await ws.send(cmd.to_json())
@@ -128,4 +144,3 @@ class TestServer(base.AsyncTestCase):
              'payload': {'services': set(['derp1', 'derp2'])}},
             resp_cmp
         )
-        await ws.close()
